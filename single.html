@@ -4665,8 +4665,13 @@ const MemberModule = {
               <div class="np-info-icon">🎂</div>
               <div class="np-info-text">${m.birth ? Utils.formatDateCN(m.birth) + '出生' : '出生日期未填写'}${m.death ? '，' + Utils.formatDateCN(m.death) + '逝世' : (m.status === '仙逝' ? '，已仙逝' : (m.status ? ' · <span class="np-status">' + m.status + '</span>' : ' · 状态未设置'))}</div>
             </div>
-            ${spouse ? `<div class="np-info-item"><div class="np-info-icon">💑</div><div class="np-info-text">配偶：<strong>${spouse.map(s => s.name).join('、')}</strong></div></div>` : ''}
-            ${siblings ? `<div class="np-info-item"><div class="np-info-icon">👫</div><div class="np-info-text">兄弟姐妹：<strong>${siblings}</strong></div></div>` : ''}
+            ${m.fatherId ? `<div class="np-info-item"><div class="np-info-icon">👨</div><div class="np-info-text">父亲：<strong>${(await DB.getMember(m.fatherId))?.name || '未知'}</strong></div></div>` : ''}
+            ${m.motherId ? `<div class="np-info-item"><div class="np-info-icon">👩</div><div class="np-info-text">母亲：<strong>${(await DB.getMember(m.motherId))?.name || '未知'}</strong></div></div>` : ''}
+            ${spouse ? `<div class="np-info-item"><div class="np-info-icon">💑</div><div class="np-info-text">${m.gender === 'male' ? '妻子' : '丈夫'}：<strong>${spouse.map(s => s.name).join('、')}</strong></div></div>` : ''}
+            ${siblings.olderBrothers.length > 0 ? `<div class="np-info-item"><div class="np-info-icon">👦</div><div class="np-info-text">兄：<strong>${siblings.olderBrothers.join('、')}</strong></div></div>` : ''}
+            ${siblings.youngerBrothers.length > 0 ? `<div class="np-info-item"><div class="np-info-icon">👦</div><div class="np-info-text">弟：<strong>${siblings.youngerBrothers.join('、')}</strong></div></div>` : ''}
+            ${siblings.olderSisters.length > 0 ? `<div class="np-info-item"><div class="np-info-icon">👧</div><div class="np-info-text">姐：<strong>${siblings.olderSisters.join('、')}</strong></div></div>` : ''}
+            ${siblings.youngerSisters.length > 0 ? `<div class="np-info-item"><div class="np-info-icon">👧</div><div class="np-info-text">妹：<strong>${siblings.youngerSisters.join('、')}</strong></div></div>` : ''}
             ${childrenHtml}
             <div class="np-info-item">
               <div class="np-info-icon">📋</div>
@@ -4766,8 +4771,13 @@ const MemberModule = {
               <div class="np-info-icon">🎂</div>
               <div class="np-info-text">${m.birth ? Utils.formatDateCN(m.birth) + '出生' : '出生日期未填写'}${m.death ? '，' + Utils.formatDateCN(m.death) + '逝世' : (m.status === '仙逝' ? '，已仙逝' : (m.status ? ' · <span class="np-status">' + m.status + '</span>' : ' · 状态未设置'))}</div>
             </div>
-            ${spouse ? `<div class="np-info-item"><div class="np-info-icon">💑</div><div class="np-info-text">配偶：<strong>${spouse.map(s => s.name).join('、')}</strong></div></div>` : ''}
-            ${siblings ? `<div class="np-info-item"><div class="np-info-icon">👫</div><div class="np-info-text">兄弟姐妹：<strong>${siblings}</strong></div></div>` : ''}
+            ${m.fatherId ? `<div class="np-info-item"><div class="np-info-icon">👨</div><div class="np-info-text">父亲：<strong>${(await DB.getMember(m.fatherId))?.name || '未知'}</strong></div></div>` : ''}
+            ${m.motherId ? `<div class="np-info-item"><div class="np-info-icon">👩</div><div class="np-info-text">母亲：<strong>${(await DB.getMember(m.motherId))?.name || '未知'}</strong></div></div>` : ''}
+            ${spouse ? `<div class="np-info-item"><div class="np-info-icon">💑</div><div class="np-info-text">${m.gender === 'male' ? '妻子' : '丈夫'}：<strong>${spouse.map(s => s.name).join('、')}</strong></div></div>` : ''}
+            ${siblings.olderBrothers.length > 0 ? `<div class="np-info-item"><div class="np-info-icon">👦</div><div class="np-info-text">兄：<strong>${siblings.olderBrothers.join('、')}</strong></div></div>` : ''}
+            ${siblings.youngerBrothers.length > 0 ? `<div class="np-info-item"><div class="np-info-icon">👦</div><div class="np-info-text">弟：<strong>${siblings.youngerBrothers.join('、')}</strong></div></div>` : ''}
+            ${siblings.olderSisters.length > 0 ? `<div class="np-info-item"><div class="np-info-icon">👧</div><div class="np-info-text">姐：<strong>${siblings.olderSisters.join('、')}</strong></div></div>` : ''}
+            ${siblings.youngerSisters.length > 0 ? `<div class="np-info-item"><div class="np-info-icon">👧</div><div class="np-info-text">妹：<strong>${siblings.youngerSisters.join('、')}</strong></div></div>` : ''}
             ${childrenHtml}
             <div class="np-info-item">
               <div class="np-info-icon">📋</div>
@@ -4825,8 +4835,62 @@ const MemberModule = {
 
   async getSiblingsDisplay(member) {
     const siblings = await DB.getSiblings(member);
-    if (siblings.length === 0) return '';
-    return siblings.map(s => s.name).join('、');
+    if (siblings.length === 0) return {brothers: [], sisters: [], olderBrothers: [], youngerBrothers: [], olderSisters: [], youngerSisters: []};
+    
+    // 按长幼排序（siblingOrder优先，然后出生日期）
+    const sortedSiblings = siblings.sort((a, b) => {
+      if (a.siblingOrder && b.siblingOrder) return a.siblingOrder - b.siblingOrder;
+      if (a.birth && b.birth) return new Date(a.birth) - new Date(b.birth);
+      if (a.siblingOrder) return -1;
+      if (b.siblingOrder) return 1;
+      return 0;
+    });
+    
+    // 获取当前成员的siblingOrder和出生日期
+    const memberOrder = member.siblingOrder !== undefined ? member.siblingOrder : 999;
+    const memberBirth = member.birth ? new Date(member.birth) : null;
+    
+    // 判断兄弟姐妹是否比当前成员年长
+    const isOlder = (s) => {
+      if (s.siblingOrder !== undefined && memberOrder !== 999) {
+        return s.siblingOrder < memberOrder;
+      }
+      if (s.birth && memberBirth) {
+        return new Date(s.birth) < memberBirth;
+      }
+      return false; // 默认认为是弟弟/妹妹
+    };
+    
+    const olderBrothers = [];
+    const youngerBrothers = [];
+    const olderSisters = [];
+    const youngerSisters = [];
+    
+    sortedSiblings.forEach(s => {
+      const older = isOlder(s);
+      if (s.gender === 'male') {
+        if (older) {
+          olderBrothers.push(s.name);
+        } else {
+          youngerBrothers.push(s.name);
+        }
+      } else {
+        if (older) {
+          olderSisters.push(s.name);
+        } else {
+          youngerSisters.push(s.name);
+        }
+      }
+    });
+    
+    return {
+      olderBrothers,
+      youngerBrothers,
+      olderSisters,
+      youngerSisters,
+      brothers: [...olderBrothers, ...youngerBrothers],
+      sisters: [...olderSisters, ...youngerSisters]
+    };
   },
 
   async showEditModal(id, anchorId = null, relationType = null) {
@@ -5054,11 +5118,11 @@ const MemberModule = {
     const allMembers = familyId ? await DB.getAllMembers(familyId) : await DB.getAllMembers();
     const anchor = allMembers.find(m => m.id === anchorId);
     if (!anchor) {
-      Utils.toast('未找到锚点成员');
+      Utils.toast('未找到当前成员');
       return;
     }
     
-    // 过滤掉锚点成员自己
+    // 过滤掉当前成员自己
     const otherMembers = allMembers.filter(m => m.id !== anchorId);
     
     const memberOptions = otherMembers.map(m => 
@@ -5070,17 +5134,17 @@ const MemberModule = {
     
     const body = `
       <div style="padding:10px 0">
-        <div style="background:#f0f8f8;padding:12px;border-radius:8px;margin-bottom:15px">
-          <div style="font-size:12px;color:#666;margin-bottom:4px">锚点成员</div>
-          <div id="rd_anchorName" style="font-size:16px;font-weight:bold;color:var(--accent,#5F9EA0)">${anchor.name}（第${anchor.generation || '?'}代·${anchor.gender === 'male' ? '男' : anchor.gender === 'female' ? '女' : '未知'}）</div>
-        </div>
-        
         <div class="form-group" style="margin-bottom:15px">
-          <label style="font-weight:bold;margin-bottom:6px;display:block">选择目标成员</label>
+          <label style="font-weight:bold;margin-bottom:6px;display:block">选择指定成员</label>
           <select id="rd_targetMember" onchange="MemberModule.updateRelationTypesByTarget()" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px">
             <option value="">请选择成员</option>
             ${memberOptions}
           </select>
+        </div>
+        
+        <div style="background:#f0f8f8;padding:12px;border-radius:8px;margin-bottom:15px">
+          <div style="font-size:12px;color:#666;margin-bottom:4px">当前成员</div>
+          <div id="rd_anchorName" style="font-size:16px;font-weight:bold;color:var(--accent,#5F9EA0)">${anchor.name}（第${anchor.generation || '?'}代·${anchor.gender === 'male' ? '男' : anchor.gender === 'female' ? '女' : '未知'}）</div>
         </div>
         
         <div class="form-group" style="margin-bottom:15px">
@@ -5131,28 +5195,28 @@ const MemberModule = {
       if (target.gender === 'female') {
         // 目标成员是女性：显示女性的关系和称谓
         relationTypes = [
-          {value: 'mother', label: '👩 母亲', desc: '选定人员是锚点人员的母亲', reverse: '母亲'},
-          {value: 'wife', label: '💑 妻子', desc: '选定人员是锚点人员的妻子', reverse: '妻子'},
-          {value: 'daughter', label: '👧 女儿', desc: '选定人员是锚点人员的女儿', reverse: '女儿'},
-          {value: 'older_sister', label: '👭 姐姐', desc: '选定人员是锚点人员的姐姐', reverse: '姐姐'},
-          {value: 'younger_sister', label: '👭 妹妹', desc: '选定人员是锚点人员的妹妹', reverse: '妹妹'},
-          {value: 'grandmother', label: '👵 祖母', desc: '选定人员是锚点人员的祖母', reverse: '祖母'},
-          {value: 'granddaughter', label: '👧 孙女', desc: '选定人员是锚点人员的孙女', reverse: '孙女'},
-          {value: 'aunt', label: '👩 姑姑', desc: '选定人员是锚点人员的姑姑', reverse: '姑姑'},
-          {value: 'niece', label: '👧 侄女', desc: '选定人员是锚点人员的侄女', reverse: '侄女'}
+          {value: 'mother', label: '👩 母亲', desc: '指定成员是当前成员的母亲', reverse: '母亲'},
+          {value: 'wife', label: '💑 妻子', desc: '指定成员是当前成员的妻子', reverse: '妻子'},
+          {value: 'daughter', label: '👧 女儿', desc: '指定成员是当前成员的女儿', reverse: '女儿'},
+          {value: 'older_sister', label: '👭 姐姐', desc: '指定成员是当前成员的姐姐', reverse: '姐姐'},
+          {value: 'younger_sister', label: '👭 妹妹', desc: '指定成员是当前成员的妹妹', reverse: '妹妹'},
+          {value: 'grandmother', label: '👵 祖母', desc: '指定成员是当前成员的祖母', reverse: '祖母'},
+          {value: 'granddaughter', label: '👧 孙女', desc: '指定成员是当前成员的孙女', reverse: '孙女'},
+          {value: 'aunt', label: '👩 姑姑', desc: '指定成员是当前成员的姑姑', reverse: '姑姑'},
+          {value: 'niece', label: '👧 侄女', desc: '指定成员是当前成员的侄女', reverse: '侄女'}
         ];
       } else {
         // 目标成员是男性：显示男性的关系和称谓
         relationTypes = [
-          {value: 'father', label: '👨 父亲', desc: '选定人员是锚点人员的父亲', reverse: '父亲'},
-          {value: 'husband', label: '💑 丈夫', desc: '选定人员是锚点人员的丈夫', reverse: '丈夫'},
-          {value: 'son', label: '👦 儿子', desc: '选定人员是锚点人员的儿子', reverse: '儿子'},
-          {value: 'older_brother', label: '👬 哥哥', desc: '选定人员是锚点人员的哥哥', reverse: '哥哥'},
-          {value: 'younger_brother', label: '👬 弟弟', desc: '选定人员是锚点人员的弟弟', reverse: '弟弟'},
-          {value: 'grandfather', label: '👴 祖父', desc: '选定人员是锚点人员的祖父', reverse: '祖父'},
-          {value: 'grandson', label: '👦 孙子', desc: '选定人员是锚点人员的孙子', reverse: '孙子'},
-          {value: 'uncle', label: '👨 叔叔/伯伯', desc: '选定人员是锚点人员的叔叔或伯伯', reverse: '叔叔/伯伯'},
-          {value: 'nephew', label: '👦 侄子', desc: '选定人员是锚点人员的侄子', reverse: '侄子'}
+          {value: 'father', label: '👨 父亲', desc: '指定成员是当前成员的父亲', reverse: '父亲'},
+          {value: 'husband', label: '💑 丈夫', desc: '指定成员是当前成员的丈夫', reverse: '丈夫'},
+          {value: 'son', label: '👦 儿子', desc: '指定成员是当前成员的儿子', reverse: '儿子'},
+          {value: 'older_brother', label: '👬 哥哥', desc: '指定成员是当前成员的哥哥', reverse: '哥哥'},
+          {value: 'younger_brother', label: '👬 弟弟', desc: '指定成员是当前成员的弟弟', reverse: '弟弟'},
+          {value: 'grandfather', label: '👴 祖父', desc: '指定成员是当前成员的祖父', reverse: '祖父'},
+          {value: 'grandson', label: '👦 孙子', desc: '指定成员是当前成员的孙子', reverse: '孙子'},
+          {value: 'uncle', label: '👨 叔叔/伯伯', desc: '指定成员是当前成员的叔叔或伯伯', reverse: '叔叔/伯伯'},
+          {value: 'nephew', label: '👦 侄子', desc: '指定成员是当前成员的侄子', reverse: '侄子'}
         ];
       }
       
@@ -5181,10 +5245,10 @@ const MemberModule = {
       }
     }
     
-    // 显示锚点成员与目标成员的关系摘要
+    // 显示当前成员与指定成员的关系摘要
     if (summaryDiv && targetSelect && select) {
       const anchorNameEl = document.querySelector('#rd_anchorName');
-      let anchorName = '锚点成员';
+      let anchorName = '当前成员';
       if (anchorNameEl) {
         // 只提取姓名部分（去掉括号里的内容）
         anchorName = anchorNameEl.textContent.split('（')[0].trim();
@@ -5195,7 +5259,7 @@ const MemberModule = {
       if (targetOption && targetOption.value && relationOption && relationOption.value && relationOption.dataset.reverse) {
         const targetName = targetOption.text.split('（')[0];
         summaryDiv.style.display = 'block';
-        summaryDiv.innerHTML = `<strong>关系确认：</strong>选定人员 <span style="color:#c62828;font-weight:bold">${targetName}</span> 是锚点人员 <span style="color:#1565c0;font-weight:bold">${anchorName}</span> 的 <span style="color:#2e7d32;font-weight:bold">${relationOption.dataset.reverse}</span>`;
+        summaryDiv.innerHTML = `<strong>关系确认：</strong>指定成员 <span style="color:#c62828;font-weight:bold">${targetName}</span> 是当前成员 <span style="color:#1565c0;font-weight:bold">${anchorName}</span> 的 <span style="color:#2e7d32;font-weight:bold">${relationOption.dataset.reverse}</span>`;
       } else {
         summaryDiv.style.display = 'none';
       }
@@ -5213,7 +5277,7 @@ const MemberModule = {
     const relationType = relationSelect.value;
     
     if (!targetId) {
-      Utils.toast('请选择目标成员');
+      Utils.toast('请选择指定成员');
       return;
     }
     if (!relationType) {
@@ -5230,25 +5294,184 @@ const MemberModule = {
       return;
     }
     
-    // 根据关系类型更新关系
+    // ========== 性别检查 ==========
+    const genderCheck = () => {
+      // 女性不能定义为父亲/儿子/祖父/孙子/丈夫/哥哥/弟弟
+      if (target.gender === 'female') {
+        if (['father', 'son', 'grandfather', 'grandson', 'husband', 'older_brother', 'younger_brother', 'brother'].includes(relationType)) {
+          Utils.toast('错误：女性不能定义为父亲/儿子/祖父/孙子/丈夫/兄弟');
+          return false;
+        }
+      }
+      // 男性不能定义为母亲/女儿/祖母/孙女/妻子/姐姐/妹妹
+      if (target.gender === 'male') {
+        if (['mother', 'daughter', 'grandmother', 'granddaughter', 'wife', 'older_sister', 'younger_sister', 'sister'].includes(relationType)) {
+          Utils.toast('错误：男性不能定义为母亲/女儿/祖母/孙女/妻子/姐妹');
+          return false;
+        }
+      }
+      return true;
+    };
+    
+    if (!genderCheck()) return;
+    
+    // ========== 年龄检查 ==========
+    const ageCheck = () => {
+      if (!anchor.birth || !target.birth) return true; // 没有出生日期则跳过检查
+      
+      const anchorBirth = new Date(anchor.birth);
+      const targetBirth = new Date(target.birth);
+      const targetOlder = targetBirth < anchorBirth; // target是否比anchor年长
+      
+      // 弟弟/妹妹：target必须比anchor年轻
+      if (['younger_brother', 'younger_sister'].includes(relationType) && targetOlder) {
+        Utils.toast('错误：年纪大的不能定义为弟弟/妹妹');
+        return false;
+      }
+      // 哥哥/姐姐：target必须比anchor年长
+      if (['older_brother', 'older_sister'].includes(relationType) && !targetOlder) {
+        Utils.toast('错误：年纪小的不能定义为哥哥/姐姐');
+        return false;
+      }
+      // 儿子/女儿：target必须比anchor年轻
+      if (['son', 'daughter', 'grandson', 'granddaughter'].includes(relationType) && targetOlder) {
+        Utils.toast('错误：年纪大的不能定义为儿子/女儿/孙子/孙女');
+        return false;
+      }
+      // 父亲/母亲：target必须比anchor年长
+      if (['father', 'mother', 'grandfather', 'grandmother'].includes(relationType) && !targetOlder) {
+        Utils.toast('错误：年纪小的不能定义为父亲/母亲/祖父/祖母');
+        return false;
+      }
+      return true;
+    };
+    
+    if (!ageCheck()) return;
+    
+    // ========== 循环引用检查 ==========
+    const isDescendant = async (ancestorId, descendantId) => {
+      const allMembers = familyId ? await DB.getAllMembers(familyId) : await DB.getAllMembers();
+      const visited = new Set();
+      const queue = [ancestorId];
+      while (queue.length > 0) {
+        const currentId = queue.shift();
+        if (currentId === descendantId) return true;
+        if (visited.has(currentId)) continue;
+        visited.add(currentId);
+        allMembers.forEach(m => {
+          if (m.fatherId === currentId || m.motherId === currentId) {
+            queue.push(m.id);
+          }
+        });
+      }
+      return false;
+    };
+    
+    const isAncestor = async (descendantId, ancestorId) => {
+      return await isDescendant(ancestorId, descendantId);
+    };
+    
+    // 对于父亲/母亲关系：检查target是否是anchor的后代
+    if (['father', 'mother', 'grandfather', 'grandmother'].includes(relationType)) {
+      const wouldCreateCycle = await isDescendant(anchorId, targetId);
+      if (wouldCreateCycle) {
+        Utils.toast('错误：不能把后代定义为父亲/母亲/祖父/祖母，会形成循环关系');
+        return;
+      }
+    }
+    
+    // 对于儿子/女儿关系：检查target是否是anchor的祖先
+    if (['son', 'daughter', 'grandson', 'granddaughter'].includes(relationType)) {
+      const wouldCreateCycle = await isAncestor(anchorId, targetId);
+      if (wouldCreateCycle) {
+        Utils.toast('错误：不能把祖先定义为儿子/女儿/孙子/孙女，会形成循环关系');
+        return;
+      }
+    }
+    
+    // 对于兄弟/姐妹关系：检查target是否是anchor的祖先（否则会形成循环引用）
+    if (['older_brother', 'younger_brother', 'older_sister', 'younger_sister', 'brother', 'sister'].includes(relationType)) {
+      const wouldCreateCycle = await isAncestor(anchorId, targetId);
+      if (wouldCreateCycle) {
+        Utils.toast('错误：不能把祖先定义为兄弟/姐妹，会形成循环关系');
+        return;
+      }
+      // 注意：即使anchor没有父母，也可以定义兄弟/姐妹关系
+      // 只需要把target的代数设置为和anchor相同即可
+    }
+    
+    // ========== 递归更新所有后代的代数 ==========
+    const updateDescendantsGeneration = async (memberId, newGeneration) => {
+      const allMembers = familyId ? await DB.getAllMembers(familyId) : await DB.getAllMembers();
+      const descendants = allMembers.filter(m => m.fatherId === memberId || m.motherId === memberId);
+      for (const descendant of descendants) {
+        descendant.generation = newGeneration + 1;
+        await DB.saveMember(descendant);
+        await updateDescendantsGeneration(descendant.id, newGeneration + 1);
+      }
+    };
+    
+    // ========== 清除旧的关系 ==========
+    const clearOldRelations = async (member) => {
+      // 清除父亲/母亲关系
+      member.fatherId = null;
+      member.motherId = null;
+      // 配偶关系不需要清除，因为配偶是双向的，重新定义时会处理
+    };
+    
+    // ========== 根据关系类型更新关系 ==========
     switch (relationType) {
       case 'father':
+        // 清除anchor旧的父亲关系
+        anchor.fatherId = null;
         anchor.fatherId = targetId;
+        // 更新锚点成员的代数
+        anchor.generation = (target.generation || 1) + 1;
+        // 递归更新锚点成员的所有后代的代数
+        await updateDescendantsGeneration(anchorId, anchor.generation);
         break;
       case 'mother':
+        // 清除anchor旧的母亲关系
+        anchor.motherId = null;
         anchor.motherId = targetId;
+        // 更新锚点成员的代数
+        anchor.generation = (target.generation || 1) + 1;
+        // 递归更新锚点成员的所有后代的代数
+        await updateDescendantsGeneration(anchorId, anchor.generation);
         break;
       case 'wife':
       case 'husband':
       case 'spouse':
+        // 清除旧的配偶关系（双向）
+        if (anchor.spouseIds) {
+          for (const oldSpouseId of anchor.spouseIds) {
+            const oldSpouse = await DB.getMember(oldSpouseId);
+            if (oldSpouse && oldSpouse.spouseIds) {
+              oldSpouse.spouseIds = oldSpouse.spouseIds.filter(id => id !== anchorId);
+              await DB.saveMember(oldSpouse);
+            }
+          }
+        }
+        if (target.spouseIds) {
+          for (const oldSpouseId of target.spouseIds) {
+            const oldSpouse = await DB.getMember(oldSpouseId);
+            if (oldSpouse && oldSpouse.spouseIds) {
+              oldSpouse.spouseIds = oldSpouse.spouseIds.filter(id => id !== targetId);
+              await DB.saveMember(oldSpouse);
+            }
+          }
+        }
         // 双向设置配偶关系
-        if (!anchor.spouseIds) anchor.spouseIds = [];
-        if (!anchor.spouseIds.includes(targetId)) anchor.spouseIds.push(targetId);
-        if (!target.spouseIds) target.spouseIds = [];
-        if (!target.spouseIds.includes(anchorId)) target.spouseIds.push(anchorId);
+        anchor.spouseIds = [targetId];
+        target.spouseIds = [anchorId];
+        // 配偶的代数应该相同
+        target.generation = anchor.generation || 1;
         await DB.saveMember(target);
         break;
       case 'son':
+        // 清除target旧的父亲/母亲关系
+        target.fatherId = null;
+        target.motherId = null;
         if (anchor.gender === 'female') {
           target.motherId = anchorId;
         } else {
@@ -5256,8 +5479,13 @@ const MemberModule = {
         }
         target.generation = (anchor.generation || 1) + 1;
         await DB.saveMember(target);
+        // 递归更新target的所有后代的代数
+        await updateDescendantsGeneration(targetId, target.generation);
         break;
       case 'daughter':
+        // 清除target旧的父亲/母亲关系
+        target.fatherId = null;
+        target.motherId = null;
         if (anchor.gender === 'female') {
           target.motherId = anchorId;
         } else {
@@ -5265,6 +5493,8 @@ const MemberModule = {
         }
         target.generation = (anchor.generation || 1) + 1;
         await DB.saveMember(target);
+        // 递归更新target的所有后代的代数
+        await updateDescendantsGeneration(targetId, target.generation);
         break;
       case 'older_brother':
       case 'younger_brother':
@@ -5272,11 +5502,55 @@ const MemberModule = {
       case 'younger_sister':
       case 'brother':
       case 'sister':
-        // 兄弟/姐妹共享父母
+        // 清除target旧的父亲/母亲关系
+        target.fatherId = null;
+        target.motherId = null;
+        // 兄弟/姐妹共享父母（anchor必须有父母，前面已经检查过）
         if (anchor.fatherId) target.fatherId = anchor.fatherId;
         if (anchor.motherId) target.motherId = anchor.motherId;
         target.generation = anchor.generation || 1;
+        
+        // 根据关系类型设置siblingOrder（长幼顺序）
+        const anchorOrder = anchor.siblingOrder || 0;
+        const allMembersForSibling = familyId ? await DB.getAllMembers(familyId) : await DB.getAllMembers();
+        if (relationType === 'older_brother' || relationType === 'older_sister') {
+          // target是anchor的哥哥/姐姐，所以target的siblingOrder应该比anchor小
+          target.siblingOrder = anchorOrder - 1;
+          // 把所有比anchor大或等于的兄弟的siblingOrder都减1
+          const allSiblings = allMembersForSibling.filter(m => 
+            m.id !== targetId && 
+            m.id !== anchorId &&
+            ((anchor.fatherId && m.fatherId === anchor.fatherId) || 
+             (anchor.motherId && m.motherId === anchor.motherId))
+          );
+          allSiblings.forEach(s => {
+            if ((s.siblingOrder || 0) <= anchorOrder) {
+              s.siblingOrder = (s.siblingOrder || 0) - 1;
+              DB.saveMember(s);
+            }
+          });
+        } else if (relationType === 'younger_brother' || relationType === 'younger_sister') {
+          // target是anchor的弟弟/妹妹，所以target的siblingOrder应该比anchor大
+          target.siblingOrder = anchorOrder + 1;
+          // 把所有比anchor大的兄弟的siblingOrder都加1
+          const allSiblings = allMembersForSibling.filter(m => 
+            m.id !== targetId && 
+            m.id !== anchorId &&
+            ((anchor.fatherId && m.fatherId === anchor.fatherId) || 
+             (anchor.motherId && m.motherId === anchor.motherId))
+          );
+          allSiblings.forEach(s => {
+            if ((s.siblingOrder || 0) > anchorOrder) {
+              s.siblingOrder = (s.siblingOrder || 0) + 1;
+              DB.saveMember(s);
+            }
+          });
+        }
+        // 如果是普通的兄弟/姐妹（不区分长幼），不设置siblingOrder
+        
         await DB.saveMember(target);
+        // 递归更新target的所有后代的代数
+        await updateDescendantsGeneration(targetId, target.generation);
         break;
       case 'grandfather':
         // 祖父：锚点的父亲的父亲
@@ -5284,7 +5558,10 @@ const MemberModule = {
           const father = await DB.getMember(anchor.fatherId);
           if (father) {
             father.fatherId = targetId;
+            father.generation = (target.generation || 1) + 1;
             await DB.saveMember(father);
+            // 递归更新father的所有后代的代数
+            await updateDescendantsGeneration(father.id, father.generation);
           }
         }
         break;
@@ -5294,19 +5571,26 @@ const MemberModule = {
           const father = await DB.getMember(anchor.fatherId);
           if (father) {
             father.motherId = targetId;
+            father.generation = (target.generation || 1) + 1;
             await DB.saveMember(father);
+            // 递归更新father的所有后代的代数
+            await updateDescendantsGeneration(father.id, father.generation);
           }
         }
         break;
       case 'grandson':
         // 孙子：锚点的儿子的儿子
-        // 先找锚点的儿子
         const allMembers = familyId ? await DB.getAllMembers(familyId) : await DB.getAllMembers();
         const son = allMembers.find(m => m.fatherId === anchorId && m.gender === 'male');
         if (son) {
+          // 清除target旧的父亲/母亲关系
+          target.fatherId = null;
+          target.motherId = null;
           target.fatherId = son.id;
           target.generation = (anchor.generation || 1) + 2;
           await DB.saveMember(target);
+          // 递归更新target的所有后代的代数
+          await updateDescendantsGeneration(targetId, target.generation);
         } else {
           Utils.toast('锚点成员没有儿子，无法定义孙子关系');
           return;
@@ -5317,9 +5601,14 @@ const MemberModule = {
         const allMembers2 = familyId ? await DB.getAllMembers(familyId) : await DB.getAllMembers();
         const son2 = allMembers2.find(m => m.fatherId === anchorId && m.gender === 'male');
         if (son2) {
+          // 清除target旧的父亲/母亲关系
+          target.fatherId = null;
+          target.motherId = null;
           target.fatherId = son2.id;
           target.generation = (anchor.generation || 1) + 2;
           await DB.saveMember(target);
+          // 递归更新target的所有后代的代数
+          await updateDescendantsGeneration(targetId, target.generation);
         } else {
           Utils.toast('锚点成员没有儿子，无法定义孙女关系');
           return;
@@ -5330,9 +5619,14 @@ const MemberModule = {
         if (anchor.fatherId) {
           const father = await DB.getMember(anchor.fatherId);
           if (father && father.fatherId) {
+            // 清除target旧的父亲/母亲关系
+            target.fatherId = null;
+            target.motherId = null;
             target.fatherId = father.fatherId;
             target.generation = father.generation || 1;
             await DB.saveMember(target);
+            // 递归更新target的所有后代的代数
+            await updateDescendantsGeneration(targetId, target.generation);
           }
         }
         break;
@@ -5341,9 +5635,14 @@ const MemberModule = {
         if (anchor.fatherId) {
           const father = await DB.getMember(anchor.fatherId);
           if (father && father.fatherId) {
+            // 清除target旧的父亲/母亲关系
+            target.fatherId = null;
+            target.motherId = null;
             target.fatherId = father.fatherId;
             target.generation = father.generation || 1;
             await DB.saveMember(target);
+            // 递归更新target的所有后代的代数
+            await updateDescendantsGeneration(targetId, target.generation);
           }
         }
         break;
@@ -5357,9 +5656,14 @@ const MemberModule = {
           m.gender === 'male'
         );
         if (brother) {
+          // 清除target旧的父亲/母亲关系
+          target.fatherId = null;
+          target.motherId = null;
           target.fatherId = brother.id;
           target.generation = (anchor.generation || 1) + 1;
           await DB.saveMember(target);
+          // 递归更新target的所有后代的代数
+          await updateDescendantsGeneration(targetId, target.generation);
         } else {
           Utils.toast('锚点成员没有兄弟，无法定义侄子关系');
           return;
@@ -5375,9 +5679,14 @@ const MemberModule = {
           m.gender === 'male'
         );
         if (brother2) {
+          // 清除target旧的父亲/母亲关系
+          target.fatherId = null;
+          target.motherId = null;
           target.fatherId = brother2.id;
           target.generation = (anchor.generation || 1) + 1;
           await DB.saveMember(target);
+          // 递归更新target的所有后代的代数
+          await updateDescendantsGeneration(targetId, target.generation);
         } else {
           Utils.toast('锚点成员没有兄弟，无法定义侄女关系');
           return;
@@ -5391,8 +5700,12 @@ const MemberModule = {
     Utils.toast('亲属关系已更新');
     Utils.closeModal();
     
-    // 刷新族谱树
+    // 刷新族谱树（重新加载数据，确保根节点重新选择）
     if (typeof TreeModule !== 'undefined') {
+      // 先重新加载数据
+      if (TreeModule.loadData) {
+        await TreeModule.loadData();
+      }
       TreeModule.render();
     }
     
@@ -6101,32 +6414,26 @@ const TreeModule = {
       }
       return false;
     }
-    // 优先选择有子女的没有父母的男性成员作为根节点（始祖），排除作为配偶加入的成员
+    // 显示所有没有父母的男性成员作为根节点，排除作为配偶加入的成员
     let roots = [];
+    // 首先选择不是配偶成员的没有父母的男性成员（按代数排序，有子女的优先）
+    const nonSpouseRoots = [];
     for (let i = 0; i < noParentsMale.length; i++) {
-      if (memberHasChildren(noParentsMale[i], this.members) && !isSpouseMember(noParentsMale[i], this.members)) {
-        roots.push(noParentsMale[i]);
+      if (!isSpouseMember(noParentsMale[i], this.members)) {
+        nonSpouseRoots.push(noParentsMale[i]);
       }
     }
+    // 按有子女优先排序
+    nonSpouseRoots.sort((a, b) => {
+      const aHasChildren = memberHasChildren(a, this.members) ? 0 : 1;
+      const bHasChildren = memberHasChildren(b, this.members) ? 0 : 1;
+      return aHasChildren - bHasChildren;
+    });
+    roots = nonSpouseRoots;
+    
     // 如果没有符合条件的，就不排除配偶成员
     if (roots.length === 0) {
-      for (let i = 0; i < noParentsMale.length; i++) {
-        if (memberHasChildren(noParentsMale[i], this.members)) {
-          roots.push(noParentsMale[i]);
-        }
-      }
-    }
-    // 如果没有有子女的，就选择有配偶的
-    if (roots.length === 0) {
-      for (let i = 0; i < noParentsMale.length; i++) {
-        if (noParentsMale[i].spouseIds && noParentsMale[i].spouseIds.length > 0) {
-          roots.push(noParentsMale[i]);
-        }
-      }
-    }
-    // 如果还是没有，就选择第一个没有父母的男性成员
-    if (roots.length === 0 && noParentsMale.length > 0) {
-      roots.push(noParentsMale[0]);
+      roots = noParentsMale.slice();
     }
     // 如果没有没有父母的男性成员，就取第一个男性成员
     if (roots.length === 0) {
@@ -6960,11 +7267,321 @@ const RelationModule = {
       const youngerFemale = ['孙女','曾孙女','玄孙女','来孙女','晜孙女','仍孙女','云孙女','耳孙女'];
       const idx = Math.min(steps.length - 2, youngerMale.length - 1);
       // 判断是否外孙（路径中有daughter就加"外"）
-      const hasDaughter = steps.some(s => s === 'daughter');
+      // 判断是否外孙：找到路径中第一个daughter的位置，如果不是最后一步，就是外孙/外孙女
+      const firstDaughterIndex = steps.findIndex(s => s === 'daughter');
+      const hasDaughter = firstDaughterIndex >= 0 && firstDaughterIndex < steps.length - 1;
       const prefix = hasDaughter ? '外' : '';
+      
+      // 对于孙子/孙女（steps.length === 2），显示"老几家的大孙子/二孙子"
+      if (steps.length === 2 && memberMap && pathNodes.length >= 2) {
+        const parent = pathNodes[1]; // to的父亲/母亲
+        const grandparent = pathNodes[0]; // from（祖父/祖母）
+        
+        if (parent && grandparent) {
+          // 获取祖父/祖母的所有子女
+          const children = [];
+          Object.values(memberMap).forEach(m => {
+            if (m.fatherId === grandparent.id || m.motherId === grandparent.id) {
+              children.push(m);
+            }
+          });
+          
+          // 根据年龄排序
+          children.sort((a, b) => {
+            if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+            return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+          });
+          
+          // 找到父亲/母亲在子女中的位置
+          const parentIndex = children.findIndex(c => c.id === parent.id);
+          
+          if (parentIndex >= 0) {
+            // 获取父亲/母亲的排行名称
+            const orderNames = ['老大', '老二', '老三', '老四', '老五', '老六', '老七', '老八', '老九', '老十'];
+            const parentOrderName = orderNames[parentIndex] || ('第' + (parentIndex + 1));
+            
+            // 获取to在同性别的兄弟姐妹中的位置（孙子只和兄弟比，孙女只和姐妹比）
+            const toSiblings = [];
+            Object.values(memberMap).forEach(m => {
+              if ((m.fatherId === parent.id || m.motherId === parent.id) && m.gender === to.gender) {
+                toSiblings.push(m);
+              }
+            });
+            
+            // 根据年龄排序
+            toSiblings.sort((a, b) => {
+              if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+              return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+            });
+            
+            // 找到to在同性别的兄弟姐妹中的位置
+            const toIndex = toSiblings.findIndex(c => c.id === to.id);
+            
+            if (toIndex >= 0) {
+              // 如果某一家只有一个孙子/孙女，就不要显示"大"字，直接显示"孙子/孙女"
+              if (toSiblings.length === 1) {
+                return parentOrderName + '家的' + (to.gender === 'male' ? '孙子' : '孙女');
+              }
+              
+              // 获取to的排行名称
+              const toOrderNames = ['大', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+              const toOrderName = toOrderNames[toIndex] || (toIndex + 1) + '';
+              
+              // 在只有两个孙子的时候，第二个叫小孙子
+              if (toSiblings.length === 2 && toIndex === 1) {
+                return parentOrderName + '家的小' + (to.gender === 'male' ? '孙子' : '孙女');
+              }
+              // 在有三个或更多孙子的时候，最后一个叫小孙子
+              if (toSiblings.length >= 3 && toIndex === toSiblings.length - 1) {
+                return parentOrderName + '家的小' + (to.gender === 'male' ? '孙子' : '孙女');
+              }
+              
+              return parentOrderName + '家的' + toOrderName + (to.gender === 'male' ? '孙子' : '孙女');
+            }
+          }
+        }
+      }
+      
+      // 对于曾孙/曾外孙（steps.length === 3），显示"老几家的大孙子的大曾孙"
+      if (steps.length === 3 && memberMap && pathNodes.length >= 3) {
+        const grandparent = pathNodes[1]; // to的祖父/祖母（to的父亲/母亲的父亲/母亲）
+        const greatGrandparent = pathNodes[0]; // from（曾祖父/曾祖母）
+        const parent = pathNodes[2]; // to的父亲/母亲
+        
+        if (grandparent && greatGrandparent && parent) {
+          // 获取曾祖父/曾祖母的所有子女
+          const children = [];
+          Object.values(memberMap).forEach(m => {
+            if (m.fatherId === greatGrandparent.id || m.motherId === greatGrandparent.id) {
+              children.push(m);
+            }
+          });
+          
+          // 根据年龄排序
+          children.sort((a, b) => {
+            if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+            return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+          });
+          
+          // 找到祖父/祖母在曾祖父/曾祖母的子女中的位置
+          const grandparentIndex = children.findIndex(c => c.id === grandparent.id);
+          
+          if (grandparentIndex >= 0) {
+            // 获取祖父/祖母的排行名称（老大家的/老二家的...）
+            const orderNames = ['老大', '老二', '老三', '老四', '老五', '老六', '老七', '老八', '老九', '老十'];
+            const grandparentOrderName = orderNames[grandparentIndex] || ('第' + (grandparentIndex + 1));
+            
+            // 获取祖父/祖母的所有子女（即父亲/母亲的兄弟姐妹）
+            const grandparentChildren = [];
+            Object.values(memberMap).forEach(m => {
+              if (m.fatherId === grandparent.id || m.motherId === grandparent.id) {
+                grandparentChildren.push(m);
+              }
+            });
+            
+            // 根据年龄排序
+            grandparentChildren.sort((a, b) => {
+              if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+              return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+            });
+            
+            // 找到父亲/母亲在祖父/祖母的子女中的位置
+            const parentIndex = grandparentChildren.findIndex(c => c.id === parent.id);
+            
+            // 判断是否外孙
+            const firstDaughterIndex = steps.findIndex(s => s === 'daughter');
+            const isMaternal = firstDaughterIndex >= 0 && firstDaughterIndex < steps.length - 1;
+            
+            // 对于曾孙，把"外"字放在中间，即"曾外孙"而不是"外曾孙"
+            let baseAppellation = '';
+            if (to.gender === 'male') {
+              baseAppellation = isMaternal ? '曾外孙' : '曾孙';
+            } else {
+              baseAppellation = isMaternal ? '曾外孙女' : '曾孙女';
+            }
+            
+            if (parentIndex >= 0) {
+              // 获取父亲/母亲的排行名称（大孙子/二孙子.../大孙女/二孙女...）
+              const parentOrderNames = ['大', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+              let parentOrderName = parentOrderNames[parentIndex] || (parentIndex + 1) + '';
+              
+              // 在只有两个子女的时候，第二个叫小
+              if (grandparentChildren.length === 2 && parentIndex === 1) {
+                parentOrderName = '小';
+              }
+              // 在有三个或更多子女的时候，最后一个叫小
+              if (grandparentChildren.length >= 3 && parentIndex === grandparentChildren.length - 1) {
+                parentOrderName = '小';
+              }
+              
+              // 父亲/母亲的称谓（孙子/孙女/外孙/外孙女）
+              let parentAppellation = '';
+              if (parent.gender === 'male') {
+                // 判断父亲是否是外孙（即祖父/祖母是女儿）
+                const parentIsMaternal = steps[0] === 'daughter';
+                parentAppellation = parentIsMaternal ? '外孙' : '孙子';
+              } else {
+                const parentIsMaternal = steps[0] === 'daughter';
+                parentAppellation = parentIsMaternal ? '外孙女' : '孙女';
+              }
+              
+              // 获取to在同性别的兄弟姐妹中的位置（曾孙只和兄弟比，曾孙女只和姐妹比）
+              const toSiblings = [];
+              Object.values(memberMap).forEach(m => {
+                if ((m.fatherId === parent.id || m.motherId === parent.id) && m.gender === to.gender) {
+                  toSiblings.push(m);
+                }
+              });
+              
+              // 根据年龄排序
+              toSiblings.sort((a, b) => {
+                if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+                return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+              });
+              
+              // 找到to在同性别的兄弟姐妹中的位置
+              const toIndex = toSiblings.findIndex(c => c.id === to.id);
+              
+              // to的排行名称（大曾孙/二曾孙...）
+              let toOrderName = '';
+              // 如果某一家只有一个曾孙/曾孙女，就不要显示"大"字
+              if (toIndex >= 0 && toSiblings.length > 1) {
+                const toOrderNames = ['大', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+                toOrderName = toOrderNames[toIndex] || (toIndex + 1) + '';
+                
+                // 在只有两个的时候，第二个叫小
+                if (toSiblings.length === 2 && toIndex === 1) {
+                  toOrderName = '小';
+                }
+                // 在有三个或更多的时候，最后一个叫小
+                if (toSiblings.length >= 3 && toIndex === toSiblings.length - 1) {
+                  toOrderName = '小';
+                }
+              }
+              
+              // 组合称谓：老大家的 + 大孙子的 + 大曾孙女
+              return grandparentOrderName + '家的' + parentOrderName + parentAppellation + '的' + toOrderName + baseAppellation;
+            }
+            
+            return grandparentOrderName + '家的' + baseAppellation;
+          }
+        }
+      }
+      
+      // 对于玄孙/玄外孙（steps.length === 4），显示"老几家的大孙子家的曾孙女的玄孙"
+      if (steps.length === 4 && memberMap && pathNodes.length >= 4) {
+        const node1 = pathNodes[1]; // 第一代（儿子/女儿）
+        const node2 = pathNodes[2]; // 第二代（孙子/孙女）
+        const node3 = pathNodes[3]; // 第三代（曾孙/曾孙女）
+        const fromNode = pathNodes[0]; // from（高祖父/高祖母）
+        
+        if (node1 && node2 && node3 && fromNode) {
+          // 获取from的所有子女
+          const children1 = [];
+          Object.values(memberMap).forEach(m => {
+            if (m.fatherId === fromNode.id || m.motherId === fromNode.id) {
+              children1.push(m);
+            }
+          });
+          children1.sort((a, b) => {
+            if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+            return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+          });
+          const index1 = children1.findIndex(c => c.id === node1.id);
+          
+          // 获取node1的所有子女
+          const children2 = [];
+          Object.values(memberMap).forEach(m => {
+            if (m.fatherId === node1.id || m.motherId === node1.id) {
+              children2.push(m);
+            }
+          });
+          children2.sort((a, b) => {
+            if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+            return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+          });
+          const index2 = children2.findIndex(c => c.id === node2.id);
+          
+          // 获取node2的所有子女（只和同性别的兄弟姐妹比排行）
+          const children3 = [];
+          Object.values(memberMap).forEach(m => {
+            if ((m.fatherId === node2.id || m.motherId === node2.id) && m.gender === node3.gender) {
+              children3.push(m);
+            }
+          });
+          children3.sort((a, b) => {
+            if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+            return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+          });
+          const index3 = children3.findIndex(c => c.id === node3.id);
+          
+          if (index1 >= 0 && index2 >= 0 && index3 >= 0) {
+            // 第一代排行名称（老大家的/老二家的...）
+            const orderNames1 = ['老大', '老二', '老三', '老四', '老五', '老六', '老七', '老八', '老九', '老十'];
+            const orderName1 = orderNames1[index1] || ('第' + (index1 + 1));
+            
+            // 第二代排行名称（大孙子/二孙子...）
+            const orderNames2 = ['大', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+            let orderName2 = orderNames2[index2] || (index2 + 1) + '';
+            if (children2.length === 2 && index2 === 1) orderName2 = '小';
+            if (children2.length >= 3 && index2 === children2.length - 1) orderName2 = '小';
+            
+            // 第二代称谓（孙子/孙女/外孙/外孙女）
+            let appellation2 = '';
+            if (node2.gender === 'male') {
+              appellation2 = steps[0] === 'daughter' ? '外孙' : '孙子';
+            } else {
+              appellation2 = steps[0] === 'daughter' ? '外孙女' : '孙女';
+            }
+            
+            // 第三代排行名称（大曾孙女/二曾孙女...）
+            let orderName3 = '';
+            if (children3.length > 1) {
+              orderName3 = orderNames2[index3] || (index3 + 1) + '';
+              if (children3.length === 2 && index3 === 1) orderName3 = '小';
+              if (children3.length >= 3 && index3 === children3.length - 1) orderName3 = '小';
+            }
+            
+            // 第三代称谓（曾孙/曾孙女/曾外孙/曾外孙女）
+            let appellation3 = '';
+            const firstDaughterIndex2 = steps.slice(0, 3).findIndex(s => s === 'daughter');
+            const isMaternal3 = firstDaughterIndex2 >= 0 && firstDaughterIndex2 < 2;
+            if (node3.gender === 'male') {
+              appellation3 = isMaternal3 ? '曾外孙' : '曾孙';
+            } else {
+              appellation3 = isMaternal3 ? '曾外孙女' : '曾孙女';
+            }
+            
+            // 第四代称谓（玄孙/玄外孙）
+            const firstDaughterIndex = steps.findIndex(s => s === 'daughter');
+            const isMaternal = firstDaughterIndex >= 0 && firstDaughterIndex < steps.length - 1;
+            let appellation4 = '';
+            if (to.gender === 'male') {
+              appellation4 = isMaternal ? '玄外孙' : '玄孙';
+            } else {
+              appellation4 = isMaternal ? '玄外孙女' : '玄孙女';
+            }
+            
+            // 组合称谓：老大家的 + 大孙子家的 + 曾孙女的 + 玄外孙
+            return orderName1 + '家的' + orderName2 + appellation2 + '家的' + orderName3 + appellation3 + '的' + appellation4;
+          }
+        }
+      }
+      
       // 根据to的性别判断
-      if (to.gender === 'male') return prefix + youngerMale[idx];
-      return prefix + youngerFemale[idx];
+      // 对于曾孙及以上（idx >= 1），把"外"字放在中间，即"曾外孙"而不是"外曾孙"
+      if (to.gender === 'male') {
+        if (prefix === '外' && idx >= 1) {
+          return youngerMale[idx].replace('孙', '外孙');
+        }
+        return prefix + youngerMale[idx];
+      }
+      if (to.gender === 'female') {
+        if (prefix === '外' && idx >= 1) {
+          return youngerFemale[idx].replace('孙女', '外孙女');
+        }
+        return prefix + youngerFemale[idx];
+      }
     }
 
     // ===== 2步关系 =====
@@ -7082,15 +7699,36 @@ const RelationModule = {
         }
       }
 
-      // 配偶的父母的配偶（公公/婆婆/岳父/岳母）
+      // 配偶的祖父母（祖父/祖母/外祖父/外祖母）
       // 路径：A → spouse（A的配偶）→ father/mother（配偶的父/母）→ spouse（父母的配偶）
       if (r1 === 'spouse' &&
           (r2 === 'father' || r2 === 'mother') &&
           r3 === 'spouse') {
-        // from是男性 → 配偶的母亲 = 岳母，配偶的父亲 = 岳父
-        // from是女性 → 配偶的母亲 = 婆婆，配偶的父亲 = 公公
-        if (from.gender === 'male') return to.gender === 'male' ? '岳父' : '岳母';
-        return to.gender === 'male' ? '公公' : '婆婆';
+        // 如果是配偶的父亲的配偶，就是配偶的祖父/祖母
+        // 如果是配偶的母亲的配偶，就是配偶的外祖父/外祖母
+        const isMaternal = r2 === 'mother';
+        const prefix = isMaternal ? '外' : '';
+        if (to.gender === 'male') {
+          return prefix + '祖父';
+        } else {
+          return prefix + '祖母';
+        }
+      }
+      
+      // 配偶的祖父母（祖父/祖母/外祖父/外祖母）
+      // 路径：A → spouse（A的配偶）→ father/mother（配偶的父/母）→ father/mother（配偶的祖父/母）
+      if (r1 === 'spouse' &&
+          (r2 === 'father' || r2 === 'mother') &&
+          (r3 === 'father' || r3 === 'mother')) {
+        // 如果是配偶的父亲的父亲/母亲，就是配偶的祖父/祖母
+        // 如果是配偶的母亲的父亲/母亲，就是配偶的外祖父/外祖母
+        const isMaternal = r2 === 'mother';
+        const prefix = isMaternal ? '外' : '';
+        if (to.gender === 'male') {
+          return prefix + '祖父';
+        } else {
+          return prefix + '祖母';
+        }
       }
       
       // 配偶的子女的配偶（儿媳/女婿）
@@ -7293,6 +7931,95 @@ const RelationModule = {
           r3 === 'spouse') {
         const isMaternal = r1 === 'daughter';
         const prefix = isMaternal ? '外孙' : '孙';
+        
+        // 对于孙媳妇/孙女婿（不是外孙），显示"老几家的大孙媳妇/二孙媳妇"
+        if (!isMaternal && memberMap && pathNodes.length >= 3) {
+          const parent = pathNodes[1]; // 孙子女的父亲/母亲
+          const grandparent = pathNodes[0]; // from（祖父/祖母）
+          const grandchild = pathNodes[2]; // 孙子女（to的配偶）
+          
+          if (parent && grandparent && grandchild) {
+            // 获取祖父/祖母的所有子女
+            const children = [];
+            Object.values(memberMap).forEach(m => {
+              if (m.fatherId === grandparent.id || m.motherId === grandparent.id) {
+                children.push(m);
+              }
+            });
+            
+            // 根据年龄排序
+            children.sort((a, b) => {
+              if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+              return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+            });
+            
+            // 找到父亲/母亲在子女中的位置
+            const parentIndex = children.findIndex(c => c.id === parent.id);
+            
+            if (parentIndex >= 0) {
+              // 获取父亲/母亲的排行名称
+              const orderNames = ['老大', '老二', '老三', '老四', '老五', '老六', '老七', '老八', '老九', '老十'];
+              const parentOrderName = orderNames[parentIndex] || ('第' + (parentIndex + 1));
+              
+              // 获取孙子女在同性别的兄弟姐妹中的位置
+              const grandchildSiblings = [];
+              Object.values(memberMap).forEach(m => {
+                if ((m.fatherId === parent.id || m.motherId === parent.id) && m.gender === grandchild.gender) {
+                  grandchildSiblings.push(m);
+                }
+              });
+              
+              // 根据年龄排序
+              grandchildSiblings.sort((a, b) => {
+                if (a.birth && b.birth) return a.birth < b.birth ? -1 : 1;
+                return (a.siblingOrder || 99) - (b.siblingOrder || 99);
+              });
+              
+              // 找到孙子女在同性别的兄弟姐妹中的位置
+              const grandchildIndex = grandchildSiblings.findIndex(c => c.id === grandchild.id);
+              
+              if (grandchildIndex >= 0) {
+                // 如果只有一个孙子女，就不显示"大"字
+                if (grandchildSiblings.length === 1) {
+                  if (r2 === 'son') {
+                    return parentOrderName + '家的' + (to.gender === 'female' ? prefix + '媳妇' : prefix + '子');
+                  } else {
+                    return parentOrderName + '家的' + (to.gender === 'male' ? prefix + '女婿' : prefix + '女');
+                  }
+                }
+                
+                // 获取孙子女的排行名称
+                const grandchildOrderNames = ['大', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+                const grandchildOrderName = grandchildOrderNames[grandchildIndex] || (grandchildIndex + 1) + '';
+                
+                // 在只有两个孙子女的时候，第二个叫小孙媳妇
+                if (grandchildSiblings.length === 2 && grandchildIndex === 1) {
+                  if (r2 === 'son') {
+                    return parentOrderName + '家的小' + (to.gender === 'female' ? prefix + '媳妇' : prefix + '子');
+                  } else {
+                    return parentOrderName + '家的小' + (to.gender === 'male' ? prefix + '女婿' : prefix + '女');
+                  }
+                }
+                
+                // 在有三个或更多孙子女的时候，最后一个叫小孙媳妇
+                if (grandchildSiblings.length >= 3 && grandchildIndex === grandchildSiblings.length - 1) {
+                  if (r2 === 'son') {
+                    return parentOrderName + '家的小' + (to.gender === 'female' ? prefix + '媳妇' : prefix + '子');
+                  } else {
+                    return parentOrderName + '家的小' + (to.gender === 'male' ? prefix + '女婿' : prefix + '女');
+                  }
+                }
+                
+                if (r2 === 'son') {
+                  return parentOrderName + '家的' + grandchildOrderName + (to.gender === 'female' ? prefix + '媳妇' : prefix + '子');
+                } else {
+                  return parentOrderName + '家的' + grandchildOrderName + (to.gender === 'male' ? prefix + '女婿' : prefix + '女');
+                }
+              }
+            }
+          }
+        }
+        
         if (r2 === 'son') {
           return to.gender === 'female' ? prefix + '媳妇' : prefix + '子';
         } else {
@@ -7530,14 +8257,17 @@ const RelationModule = {
         return r4 === 'son' ? prefix : prefix + '女';
       }
       
-      // 曾孙媳妇、曾孙女婿、外曾孙媳妇、外曾孙女婿
+      // 曾孙媳妇、曾孙女婿、曾外孙媳妇、曾外孙女婿
       // 路径：A → son/daughter → son/daughter → son/daughter → spouse
       if ((r1 === 'son' || r1 === 'daughter') &&
           (r2 === 'son' || r2 === 'daughter') &&
           (r3 === 'son' || r3 === 'daughter') &&
           r4 === 'spouse') {
-        const isMaternal = r1 === 'daughter';
-        const prefix = isMaternal ? '外曾孙' : '曾孙';
+        // 判断是否外孙：找到路径中第一个daughter的位置，如果不是最后一步（spouse之前），就是外孙
+        const firstDaughterIndex = steps.findIndex(s => s === 'daughter');
+        const isMaternal = firstDaughterIndex >= 0 && firstDaughterIndex < steps.length - 1;
+        // 对于曾孙媳妇，把"外"字放在中间，即"曾外孙媳妇"而不是"外曾孙媳妇"
+        const prefix = isMaternal ? '曾外孙' : '曾孙';
         if (r3 === 'son') {
           return to.gender === 'female' ? prefix + '媳妇' : prefix + '子';
         } else {
