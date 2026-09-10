@@ -6144,7 +6144,7 @@ const TreeModule = {
       roots.push(this.members[0]);
     }
 
-    // 自动计算家庭内排行（统一按年龄排序，老大、老二、老三...）
+    // 自动计算家庭内排行（统一按年龄排序，老大、老二、老三...；只有一个孩子的不显示排行）
     this.rankMap = {};
     const fatherGroups = {};
     this.members.forEach(m => {
@@ -6159,6 +6159,10 @@ const TreeModule = {
         if (a.birth && b.birth) return new Date(a.birth) - new Date(b.birth);
         return 0;
       });
+      // 只有一个孩子的家庭，不显示排行标注
+      if (children.length <= 1) {
+        return;
+      }
       const ranks = ['老大', '老二', '老三', '老四', '老五', '老六', '老七', '老八', '老九', '老十'];
       children.forEach((child, index) => {
         this.rankMap[child.id] = ranks[index] || ('第' + (index + 1));
